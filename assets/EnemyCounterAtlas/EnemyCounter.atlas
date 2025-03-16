@@ -1,0 +1,15 @@
+EnemyCounter.png
+size:64,256
+repeat:none
+EnemyCounter1
+bounds:2,39,43,35
+EnemyCounter2
+bounds:2,113,43,35
+EnemyCounter3
+bounds:2,187,43,35
+EnemyCounter4
+bounds:2,76,43,35
+EnemyCounter5
+bounds:2,150,43,35
+EnemyCounter6
+bounds:2,2,43,35

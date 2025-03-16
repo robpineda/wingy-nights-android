@@ -1,0 +1,15 @@
+EnemyOrange.png
+size:512,64
+repeat:none
+EnemyOrange1
+bounds:357,2,69,56
+EnemyOrange2
+bounds:215,2,69,56
+EnemyOrange3
+bounds:73,2,69,56
+EnemyOrange4
+bounds:286,2,69,56
+EnemyOrange5
+bounds:144,2,69,56
+EnemyOrange6
+bounds:2,2,69,56
