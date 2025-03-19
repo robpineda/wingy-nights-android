@@ -16,10 +16,10 @@ import com.badlogic.gdx.utils.Array as GdxArray
 class MainScreen(private val game: WingyNightsGame) : Screen {
     private val camera = OrthographicCamera()
     private val world = World(Vector2(0f, 0f), true) // Physics world
-    private lateinit var character: Sprite
+    private var character: Sprite
     private lateinit var characterBody: Body
     private val enemies = GdxArray<Sprite>()
-    private lateinit var characterAtlas: TextureAtlas
+    private var characterSleepingAtlas: TextureAtlas
     private var characterAnimation: Animation<TextureRegion>? = null // Nullable to handle empty frames
     private var stateTime = 0f
     private lateinit var backgroundStars: GdxArray<Sprite>
@@ -36,8 +36,8 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
 
     init {
         camera.setToOrtho(false, Gdx.graphics.width.toFloat(), Gdx.graphics.height.toFloat())
-        characterAtlas = TextureAtlas(Gdx.files.internal("Atlases/CharacterSleeping.atlas"))
-        character = Sprite(Texture(Gdx.files.internal("Characters/Character.png"))) // Load standalone Character.png
+        characterSleepingAtlas = TextureAtlas(Gdx.files.internal("Atlases/CharacterSleeping.atlas"))
+        character = Sprite(Texture(Gdx.files.internal("Characters/Character.png")))
         character.setPosition(Gdx.graphics.width / 12f, separationBetweenLines * 2 + toBetweenRows)
         setupAssets()
         setupBackground()
@@ -46,11 +46,11 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     private fun setupAssets() {
         // Character animation
         val frames = GdxArray<TextureRegion>()
-        characterAtlas.findRegions("CharacterSleeping").forEach { frames.add(it) }
+        characterSleepingAtlas.regions.forEach { frames.add(it) }
 
         // Debug: Log atlas regions to verify
-        Gdx.app.log("MainScreen", "CharacterSleeping atlas regions found: ${characterAtlas.regions.size}")
-        characterAtlas.regions.forEach { Gdx.app.log("MainScreen", "Region: ${it.name}") }
+        Gdx.app.log("MainScreen", "CharacterSleeping atlas regions found: ${characterSleepingAtlas.regions.size}")
+        characterSleepingAtlas.regions.forEach { Gdx.app.log("MainScreen", "Region: ${it.name}") }
 
         if (frames.size > 0) {
             characterAnimation = Animation(0.07f, frames, Animation.PlayMode.LOOP)
@@ -273,8 +273,8 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     override fun resume() {}
     override fun hide() {}
     override fun dispose() {
-        characterAtlas.dispose()
-        character.texture.dispose() // Dispose standalone Character texture
+        characterSleepingAtlas.dispose()
+        character.texture.dispose()
         teleportSounds.forEach { it.dispose() }
         beginLowSounds.forEach { it.dispose() }
         endHighSounds.forEach { it.dispose() }
