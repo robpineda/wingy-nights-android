@@ -1,0 +1,15 @@
+EnemyRed.png
+size:512,64
+repeat:none
+EnemyRed1
+bounds:286,2,69,56
+EnemyRed2
+bounds:144,2,69,56
+EnemyRed3
+bounds:2,2,69,56
+EnemyRed4
+bounds:215,2,69,56
+EnemyRed5
+bounds:73,2,69,56
+EnemyRed6
+bounds:357,2,69,56

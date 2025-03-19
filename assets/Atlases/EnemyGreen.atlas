@@ -1,0 +1,15 @@
+EnemyGreen.png
+size:512,64
+repeat:none
+EnemyGreen1
+bounds:144,2,69,56
+EnemyGreen2
+bounds:2,2,69,56
+EnemyGreen3
+bounds:286,2,69,56
+EnemyGreen4
+bounds:73,2,69,56
+EnemyGreen5
+bounds:357,2,69,56
+EnemyGreen6
+bounds:215,2,69,56
