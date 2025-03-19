@@ -5,6 +5,7 @@ import com.badlogic.gdx.Screen
 import com.badlogic.gdx.audio.Sound
 import com.badlogic.gdx.graphics.GL20
 import com.badlogic.gdx.graphics.OrthographicCamera
+import com.badlogic.gdx.graphics.Texture
 import com.badlogic.gdx.graphics.g2d.*
 import com.badlogic.gdx.math.MathUtils
 import com.badlogic.gdx.math.Rectangle
@@ -18,7 +19,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     private lateinit var character: Sprite
     private lateinit var characterBody: Body
     private val enemies = GdxArray<Sprite>()
-    private lateinit var atlas: TextureAtlas
+    private lateinit var characterAtlas: TextureAtlas
     private lateinit var characterAnimation: Animation<TextureRegion>
     private var stateTime = 0f
     private lateinit var backgroundStars: GdxArray<Sprite>
@@ -35,8 +36,8 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
 
     init {
         camera.setToOrtho(false, Gdx.graphics.width.toFloat(), Gdx.graphics.height.toFloat())
-        atlas = TextureAtlas(Gdx.files.internal("CharacterSleeping.atlas"))
-        character = Sprite(atlas.findRegion("Character"))
+        characterAtlas = TextureAtlas(Gdx.files.internal("Atlases/CharacterSleeping.atlas"))
+        character = Sprite(Texture(Gdx.files.internal("Characters/Character.png"))) // Load standalone Character.png
         character.setPosition(Gdx.graphics.width / 12f, separationBetweenLines * 2 + toBetweenRows)
         setupAssets()
         setupBackground()
@@ -45,21 +46,25 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     private fun setupAssets() {
         // Character animation
         val frames = GdxArray<TextureRegion>()
-        atlas.findRegions("CharacterSleeping").forEach { frames.add(it) }
+        characterAtlas.findRegions("CharacterSleeping").forEach { frames.add(it) }
         characterAnimation = Animation(0.07f, frames, Animation.PlayMode.LOOP)
 
         // Sounds
-        teleportSounds = Array(5) { Gdx.audio.newSound(Gdx.files.internal("SoundTeleport${it}.mp3")) }
-        beginLowSounds = Array(5) { Gdx.audio.newSound(Gdx.files.internal("SoundBeginLow${it}.mp3")) }
-        endHighSounds = Array(5) { Gdx.audio.newSound(Gdx.files.internal("SoundEndHigh${it}.mp3")) }
-        collisionSound = Gdx.audio.newSound(Gdx.files.internal("SoundCollision.mp3"))
+        teleportSounds = Array(5) { Gdx.audio.newSound(Gdx.files.internal("Sounds/SoundsTeleport/SoundTeleport${it}.mp3")) }
+        beginLowSounds = Array(5) { Gdx.audio.newSound(Gdx.files.internal("Sounds/SoundsBeginLow/SoundBeginLow${it}.mp3")) }
+        endHighSounds = Array(5) { Gdx.audio.newSound(Gdx.files.internal("Sounds/SoundsEndHigh/SoundEndHigh${it}.mp3")) }
+        collisionSound = Gdx.audio.newSound(Gdx.files.internal("Sounds/OtherSounds/SoundCollision.mp3"))
     }
 
     private fun setupBackground() {
         backgroundStars = GdxArray()
-        val starsTextures = listOf("BackgroundStarsOne", "BackgroundStarsTwo", "BackgroundStarsThree")
-        starsTextures.forEachIndexed { index, name ->
-            val star = Sprite(atlas.findRegion(name))
+        val starsTextures = listOf(
+            Texture(Gdx.files.internal("BackgroundStarsiPhone5/BackgroundStarsOne.png")),
+            Texture(Gdx.files.internal("BackgroundStarsiPhone5/BackgroundStarsTwo.png")),
+            Texture(Gdx.files.internal("BackgroundStarsiPhone5/BackgroundStarsThree.png"))
+        )
+        starsTextures.forEachIndexed { index, texture ->
+            val star = Sprite(texture)
             star.setPosition(Gdx.graphics.width * index.toFloat(), Gdx.graphics.height / 2f)
             star.setOriginCenter()
             backgroundStars.add(star)
@@ -135,15 +140,18 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     }
 
     private fun drawMenu() {
-        val playButton = Sprite(atlas.findRegion("ButtonPlay"))
+        val playButtonTexture = Texture(Gdx.files.internal("Buttons/ButtonPlay.png"))
+        val playButton = Sprite(playButtonTexture)
         playButton.setPosition(Gdx.graphics.width / 2f - playButton.width / 2, separationBetweenLines * 2)
         playButton.draw(game.batch)
 
-        val scoresButton = Sprite(atlas.findRegion("ButtonScores"))
+        val scoresButtonTexture = Texture(Gdx.files.internal("Buttons/ButtonHome.png")) // Assuming ButtonHome for scores
+        val scoresButton = Sprite(scoresButtonTexture)
         scoresButton.setPosition(Gdx.graphics.width - scoresButton.width, scoresButton.height)
         scoresButton.draw(game.batch)
 
-        val title = Sprite(atlas.findRegion("Title"))
+        val titleTexture = Texture(Gdx.files.internal("Symbols/Title.png"))
+        val title = Sprite(titleTexture)
         title.setPosition(Gdx.graphics.width / 2f - title.width / 2, separationBetweenLines * 3 + toBetweenRows)
         title.draw(game.batch)
     }
@@ -213,7 +221,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
             3 -> "EnemyOrange"
             else -> "EnemyPurple"
         }
-        val enemyAtlasInstance = TextureAtlas(Gdx.files.internal("$enemyAtlas.atlas"))
+        val enemyAtlasInstance = TextureAtlas(Gdx.files.internal("Atlases/$enemyAtlas.atlas"))
         val enemy = Sprite(enemyAtlasInstance.findRegion("Enemy"))
         enemy.setPosition(Gdx.graphics.width.toFloat(), separationBetweenLines * row + toBetweenRows)
 
@@ -253,11 +261,13 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     override fun resume() {}
     override fun hide() {}
     override fun dispose() {
-        atlas.dispose()
+        characterAtlas.dispose()
+        character.texture.dispose() // Dispose standalone Character texture
         teleportSounds.forEach { it.dispose() }
         beginLowSounds.forEach { it.dispose() }
         endHighSounds.forEach { it.dispose() }
         collisionSound.dispose()
+        backgroundStars.forEach { it.texture.dispose() }
         world.dispose()
     }
 }
