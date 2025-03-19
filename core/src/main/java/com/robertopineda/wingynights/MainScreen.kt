@@ -20,7 +20,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     private lateinit var characterBody: Body
     private val enemies = GdxArray<Sprite>()
     private lateinit var characterAtlas: TextureAtlas
-    private lateinit var characterAnimation: Animation<TextureRegion>
+    private var characterAnimation: Animation<TextureRegion>? = null // Nullable to handle empty frames
     private var stateTime = 0f
     private lateinit var backgroundStars: GdxArray<Sprite>
     private lateinit var teleportSounds: Array<Sound>
@@ -47,7 +47,17 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         // Character animation
         val frames = GdxArray<TextureRegion>()
         characterAtlas.findRegions("CharacterSleeping").forEach { frames.add(it) }
-        characterAnimation = Animation(0.07f, frames, Animation.PlayMode.LOOP)
+
+        // Debug: Log atlas regions to verify
+        Gdx.app.log("MainScreen", "CharacterSleeping atlas regions found: ${characterAtlas.regions.size}")
+        characterAtlas.regions.forEach { Gdx.app.log("MainScreen", "Region: ${it.name}") }
+
+        if (frames.size > 0) {
+            characterAnimation = Animation(0.07f, frames, Animation.PlayMode.LOOP)
+            Gdx.app.log("MainScreen", "Character animation initialized with ${frames.size} frames")
+        } else {
+            Gdx.app.error("MainScreen", "No CharacterSleeping regions found in atlas. Animation disabled.")
+        }
 
         // Sounds
         teleportSounds = Array(5) { Gdx.audio.newSound(Gdx.files.internal("Sounds/SoundsTeleport/SoundTeleport${it}.mp3")) }
@@ -111,7 +121,9 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         world.step(1f / 60f, 6, 2)
 
         stateTime += delta
-        character.setRegion(characterAnimation.getKeyFrame(stateTime))
+        characterAnimation?.let { animation ->
+            character.setRegion(animation.getKeyFrame(stateTime))
+        }
 
         // Sync character position with physics body
         character.setPosition(characterBody.position.x - character.width / 2, characterBody.position.y - character.height / 2)
