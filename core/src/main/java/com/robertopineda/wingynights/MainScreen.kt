@@ -48,15 +48,9 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         val frames = GdxArray<TextureRegion>()
         characterSleepingAtlas.regions.forEach { frames.add(it) }
 
-        // Debug: Log atlas regions to verify
-        Gdx.app.log("MainScreen", "CharacterSleeping atlas regions found: ${characterSleepingAtlas.regions.size}")
-        characterSleepingAtlas.regions.forEach { Gdx.app.log("MainScreen", "Region: ${it.name}") }
-
         if (frames.size > 0) {
             characterAnimation = Animation(0.07f, frames, Animation.PlayMode.LOOP)
             Gdx.app.log("MainScreen", "Character animation initialized with ${frames.size} frames")
-        } else {
-            Gdx.app.error("MainScreen", "No CharacterSleeping regions found in atlas. Animation disabled.")
         }
 
         // Sounds
