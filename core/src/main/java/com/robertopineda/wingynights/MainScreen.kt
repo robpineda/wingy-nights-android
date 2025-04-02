@@ -27,7 +27,6 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
 
     private val camera = OrthographicCamera()
     private val world = World(Vector2(0f, 0f), true) // Physics world
-    private var shouldStepWorld = true // Flag to control physics stepping
 
     // Rendering & Assets
     private lateinit var fontGenerator: FreeTypeFontGenerator
@@ -79,6 +78,8 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     private var isCharacterRotating = false
     private var characterRotationSpeed = 360f
     private val rowOccupied = BooleanArray(5) { false }
+    private val rowDisabled = BooleanArray(5) { false } // Tracks rows where collision occurred
+    private var hasLost = false // Indicates character has collided and lost movement
 
     // Preferences
     private lateinit var prefs: Preferences
@@ -201,11 +202,13 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         isGameOver = false
         isPaused = false
         isCharacterRotating = false
+        hasLost = false // Reset loss state
         character.rotation = 0f
 
         enemies.forEach { world.destroyBody(it) }
         enemies.clear()
         rowOccupied.fill(false)
+        rowDisabled.fill(false) // Re-enable all rows
 
         val initialX = WORLD_WIDTH / 12f
         val initialY = separationBetweenLines * 2 + toBetweenRows - character.height / 2f
@@ -219,7 +222,6 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
 
         spawnTimer = 1.5f
         isGamePlaying = startGame
-        shouldStepWorld = true // Reset physics stepping
     }
 
     private fun restartGame() {
@@ -261,7 +263,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     }
 
     override fun render(delta: Float) {
-        val effectiveDelta = if (isPaused || isGameOver) 0f else delta
+        val effectiveDelta = if (isPaused) 0f else delta
 
         Gdx.gl.glClearColor(24f / 255f, 55f / 255f, 78f / 255f, 1f)
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT)
@@ -269,11 +271,8 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         camera.update()
         game.batch.projectionMatrix = camera.combined
 
-        if (isGamePlaying && !isPaused && !isGameOver && shouldStepWorld) {
-            world.step(1f / 60f, 6, 2)
-        }
-
         if (isGamePlaying && !isPaused) {
+            world.step(1f / 60f, 6, 2)
             stateTime += delta
         }
 
@@ -330,7 +329,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         game.batch.end()
 
         handleInput(delta)
-        if (isGamePlaying && !isPaused && !isGameOver) {
+        if (isGamePlaying && !isPaused) {
             updateGameplay(delta)
         }
     }
@@ -350,6 +349,17 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         gameFont.draw(game.batch, scoreLayout, scoreX, scoreY)
         scoreBird.setPosition(scoreX - scoreBird.width - 5f * scaleFactor, scoreY - scoreLayout.height / 2 - scoreBird.height / 2)
         scoreBird.draw(game.batch)
+
+        // Show game over UI elements if character has lost
+        if (hasLost) {
+            val gameOverText = "Game Over"
+            gameOverLayout.setText(gameFont, gameOverText, Color.WHITE, 0f, Align.center, false)
+            val textX = WORLD_WIDTH / 2f
+            val textY = WORLD_HEIGHT / 2f + gameOverLayout.height / 2 + 50f * scaleFactor
+            gameFont.draw(game.batch, gameOverLayout, textX, textY)
+            homeButton.draw(game.batch)
+            replayButton.draw(game.batch)
+        }
     }
 
     private fun drawPauseUI() {
@@ -388,7 +398,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
             val touchX = (Gdx.input.x.toFloat() / Gdx.graphics.width) * WORLD_WIDTH
             val touchY = WORLD_HEIGHT - (Gdx.input.y.toFloat() / Gdx.graphics.height) * WORLD_HEIGHT
 
-            if (isGameOver) {
+            if (isGameOver || hasLost) {
                 if (homeButton.boundingRectangle.contains(touchX, touchY)) {
                     Gdx.app.log("Input", "Home button touched")
                     resetGame(startGame = false)
@@ -406,7 +416,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
                 if (pauseButton.boundingRectangle.contains(touchX, touchY)) {
                     Gdx.app.log("Input", "Pause button touched")
                     isPaused = true
-                } else {
+                } else if (!hasLost) { // Only allow movement if not lost
                     val row = (touchY / separationBetweenLines).toInt().coerceIn(0, 4)
                     teleportToRow(row)
                 }
@@ -452,14 +462,18 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
                         character.x, character.y,
                         character.width * character.scaleX, character.height * character.scaleY
                     )
-                    if (enemyRect.overlaps(charRect) && !isGameOver && isGamePlaying) {
-                        Gdx.app.log("Collision", "Character hit enemy (bounds collision)!")
+                    if (enemyRect.overlaps(charRect) && !hasLost) {
+                        Gdx.app.log("Collision", "Character hit enemy on row $row!")
                         collisionSound.play()
-                        shouldStepWorld = false // Stop physics updates
+                        world.destroyBody(enemyBody) // Remove the collided enemy
+                        iterator.remove()
+                        rowOccupied[row] = false
+                        rowDisabled[row] = true // Disable enemy spawning on this row
+                        isCharacterRotating = true // Start rotating
                         characterBody.linearVelocity = Vector2.Zero // Stop movement
-                        characterBody.angularVelocity = 0f // Stop rotation
-                        endGame()
-                        return // Exit loop to prevent further updates
+                        characterBody.angularVelocity = 0f
+                        hasLost = true // Mark as lost
+                        return // Exit loop after collision
                     }
                 }
             }
@@ -481,7 +495,8 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     }
 
     private fun spawnEnemy() {
-        val row = (0..4).filter { !rowOccupied[it] }.randomOrNull() ?: return
+        val availableRows = (0..4).filter { !rowOccupied[it] && !rowDisabled[it] }.toList()
+        val row = availableRows.randomOrNull() ?: return
         rowOccupied[row] = true
 
         val enemyType = when (MathUtils.random(0, 4)) {
@@ -532,7 +547,6 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         isGamePlaying = false
         isGameOver = true
         isPaused = false
-        isCharacterRotating = true
         finalScore = score
 
         characterBody.linearVelocity = Vector2.Zero
