@@ -690,7 +690,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
 
 
         // Dispose physics world
-        if (::world.isInitialized) world.dispose() // Check if initialized
+        world.dispose()
 
         Gdx.app.log("Dispose", "MainScreen disposed.")
     }
