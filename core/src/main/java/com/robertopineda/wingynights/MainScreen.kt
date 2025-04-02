@@ -27,6 +27,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
 
     private val camera = OrthographicCamera()
     private val world = World(Vector2(0f, 0f), true) // Physics world
+    private var shouldStepWorld = true // Flag to control physics stepping
 
     // Rendering & Assets
     private lateinit var fontGenerator: FreeTypeFontGenerator
@@ -42,6 +43,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     private var characterAnimation: Animation<TextureRegion>? = null
     private lateinit var backgroundStars: GdxArray<Sprite>
     private lateinit var enemyAtlases: Map<String, TextureAtlas>
+    private lateinit var scoreBird: AnimatedSprite
 
     // UI Sprites & Textures
     private lateinit var playButtonTexture: Texture
@@ -56,7 +58,6 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     private lateinit var pauseButton: Sprite
     private lateinit var homeButton: Sprite
     private lateinit var replayButton: Sprite
-    private lateinit var scoreBirdSprite: Sprite
 
     // Sounds
     private lateinit var teleportSounds: kotlin.Array<Sound>
@@ -70,14 +71,14 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     private var highScore = 0
     private var finalScore = 0
     private var spawnTimer = 0f
-    private val separationBetweenLines = WORLD_HEIGHT / 5f // Using virtual height
+    private val separationBetweenLines = WORLD_HEIGHT / 5f
     private val toBetweenRows = separationBetweenLines / 2f
     private var isGamePlaying = false
     private var isGameOver = false
     private var isPaused = false
     private var isCharacterRotating = false
     private var characterRotationSpeed = 360f
-    private val rowOccupied = BooleanArray(5) { false } // Track occupancy for 5 rows
+    private val rowOccupied = BooleanArray(5) { false }
 
     // Preferences
     private lateinit var prefs: Preferences
@@ -85,9 +86,9 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     init {
         camera.setToOrtho(false, WORLD_WIDTH, WORLD_HEIGHT)
         characterSleepingAtlas = TextureAtlas(Gdx.files.internal("Atlases/CharacterSleeping.atlas"))
-        character = AnimatedSprite(characterSleepingAtlas.regions.first()) // Initial frame
+        character = AnimatedSprite(characterSleepingAtlas.regions.first())
         character.setPosition(WORLD_WIDTH / 12f, separationBetweenLines * 2 + toBetweenRows - character.height / 2f)
-        character.setScale(scaleFactor.coerceIn(1f, 2f)) // Scale up, capped at 2x
+        character.setScale(scaleFactor.coerceIn(1f, 2f))
 
         prefs = Gdx.app.getPreferences("WingyNightsPrefs")
         highScore = prefs.getInteger("highScore", 0)
@@ -98,11 +99,10 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     }
 
     private fun setupAssets() {
-        // Font Loading
         try {
             fontGenerator = FreeTypeFontGenerator(Gdx.files.internal("Fonts/launica.ttf"))
             val parameter = FreeTypeFontGenerator.FreeTypeFontParameter().apply {
-                size = (24 * scaleFactor).toInt().coerceAtLeast(24) // Scale font, minimum 24
+                size = (24 * scaleFactor).toInt().coerceAtLeast(24)
                 color = Color.WHITE
                 borderWidth = 1f * scaleFactor
                 borderColor = Color.BLACK
@@ -119,7 +119,6 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         pauseLayout = GlyphLayout()
         gameOverLayout = GlyphLayout()
 
-        // Character Animation
         val frames = GdxArray<TextureRegion>()
         characterSleepingAtlas.regions.forEach { frames.add(it) }
         if (frames.size > 0) {
@@ -130,13 +129,11 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         }
         character.setOriginCenter()
 
-        // Sounds
         teleportSounds = Array(5) { Gdx.audio.newSound(Gdx.files.internal("Sounds/SoundsTeleport/SoundTeleport$it.mp3")) }
         beginLowSounds = Array(5) { Gdx.audio.newSound(Gdx.files.internal("Sounds/SoundsBeginLow/SoundBeginLow$it.mp3")) }
         endHighSounds = Array(5) { Gdx.audio.newSound(Gdx.files.internal("Sounds/SoundsEndHigh/SoundEndHigh$it.mp3")) }
         collisionSound = Gdx.audio.newSound(Gdx.files.internal("Sounds/OtherSounds/SoundCollision.mp3"))
 
-        // UI Textures
         playButtonTexture = Texture(Gdx.files.internal("Buttons/ButtonPlay.png"))
         scoresButtonTexture = Texture(Gdx.files.internal("Buttons/ButtonArrowDown.png"))
         titleTexture = Texture(Gdx.files.internal("Symbols/Title.png"))
@@ -144,16 +141,17 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         homeButtonTexture = Texture(Gdx.files.internal("Buttons/ButtonHome.png"))
         replayButtonTexture = Texture(Gdx.files.internal("Buttons/ButtonReplay.png"))
 
-        // Enemy Atlases
         val enemyTypes = listOf("EnemyBlue", "EnemyGreen", "EnemyRed", "EnemyOrange", "EnemyPurple")
         enemyAtlases = enemyTypes.associateWith { TextureAtlas(Gdx.files.internal("Atlases/$it.atlas")) }
 
-        // Score Bird Sprite
-        val blueAtlas = enemyAtlases["EnemyBlue"]
-        val birdRegion = blueAtlas?.regions?.firstOrNull() ?: TextureRegion(Texture(Gdx.files.internal("Characters/Character.png")))
-        scoreBirdSprite = Sprite(birdRegion)
-        scoreBirdSprite.setSize(birdRegion.regionWidth * 0.6f * scaleFactor, birdRegion.regionHeight * 0.6f * scaleFactor)
-        scoreBirdSprite.setOriginCenter()
+        val blueAtlas = enemyAtlases["EnemyBlue"]!!
+        scoreBird = AnimatedSprite(blueAtlas.regions.first()).apply {
+            val scoreFrames = GdxArray<TextureRegion>()
+            blueAtlas.regions.forEach { scoreFrames.add(it) }
+            setAnimation(Animation(0.07f, scoreFrames, Animation.PlayMode.LOOP))
+            setScale(scaleFactor.coerceIn(1f, 2f) * 0.6f)
+            setOriginCenter()
+        }
     }
 
     private fun setupMenuAndUISprites() {
@@ -170,7 +168,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
             setPosition(WORLD_WIDTH / 2f - width / 2, separationBetweenLines * 3f + toBetweenRows)
         }
         pauseButton = Sprite(pauseButtonTexture).apply {
-            setScale(scaleFactor.coerceIn(1f, 2f) * 0.9f) // Smaller relative scale
+            setScale(scaleFactor.coerceIn(1f, 2f) * 0.9f)
             setPosition(20f, WORLD_HEIGHT - height - 20f)
         }
         homeButton = Sprite(homeButtonTexture).apply { setScale(scaleFactor.coerceIn(1f, 2f)) }
@@ -207,7 +205,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
 
         enemies.forEach { world.destroyBody(it) }
         enemies.clear()
-        rowOccupied.fill(false) // Reset row occupancy
+        rowOccupied.fill(false)
 
         val initialX = WORLD_WIDTH / 12f
         val initialY = separationBetweenLines * 2 + toBetweenRows - character.height / 2f
@@ -221,6 +219,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
 
         spawnTimer = 1.5f
         isGamePlaying = startGame
+        shouldStepWorld = true // Reset physics stepping
     }
 
     private fun restartGame() {
@@ -239,7 +238,9 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
                 fixedRotation = false
             }
             characterBody = world.createBody(bodyDef)
-            val shape = CircleShape().apply { radius = character.width / 2.1f / WingyNightsGame.PPM }
+            val shape = PolygonShape().apply {
+                setAsBox(character.width / 2f / WingyNightsGame.PPM, character.height / 2f / WingyNightsGame.PPM)
+            }
             val fixtureDef = FixtureDef().apply {
                 this.shape = shape
                 density = 1f
@@ -250,22 +251,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
             characterBody.userData = character
 
             world.setContactListener(object : ContactListener {
-                override fun beginContact(contact: Contact) {
-                    val fixtureA = contact.fixtureA
-                    val fixtureB = contact.fixtureB
-                    val isCharA = fixtureA.userData == "character"
-                    val isCharB = fixtureB.userData == "character"
-                    val isEnemyA = fixtureA.userData == "enemy"
-                    val isEnemyB = fixtureB.userData == "enemy"
-
-                    if ((isCharA && isEnemyB) || (isCharB && isEnemyA)) {
-                        if (!isGameOver && isGamePlaying) {
-                            Gdx.app.log("Collision", "Character hit enemy!")
-                            collisionSound.play()
-                            endGame()
-                        }
-                    }
-                }
+                override fun beginContact(contact: Contact) {}
                 override fun endContact(contact: Contact) {}
                 override fun preSolve(contact: Contact, oldManifold: Manifold) {}
                 override fun postSolve(contact: Contact, impulse: ContactImpulse) {}
@@ -283,7 +269,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         camera.update()
         game.batch.projectionMatrix = camera.combined
 
-        if (isGamePlaying && !isPaused && !isGameOver) {
+        if (isGamePlaying && !isPaused && !isGameOver && shouldStepWorld) {
             world.step(1f / 60f, 6, 2)
         }
 
@@ -306,7 +292,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
             }
         }
 
-        character.update(delta) // Update animation
+        character.update(delta)
 
         enemies.forEach { enemyBody ->
             val enemySprite = enemyBody.userData as? AnimatedSprite
@@ -317,9 +303,11 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
                     enemyBodyPos.y * WingyNightsGame.PPM - sprite.height / 2
                 )
                 sprite.rotation = MathUtils.radiansToDegrees * enemyBody.angle
-                sprite.update(delta) // Update enemy animation
+                sprite.update(delta)
             }
         }
+
+        scoreBird.update(delta)
 
         game.batch.begin()
 
@@ -360,8 +348,8 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         val scoreX = WORLD_WIDTH - scoreLayout.width - 20f * scaleFactor
         val scoreY = WORLD_HEIGHT - 20f * scaleFactor
         gameFont.draw(game.batch, scoreLayout, scoreX, scoreY)
-        scoreBirdSprite.setPosition(scoreX - scoreBirdSprite.width - 5f * scaleFactor, scoreY - scoreLayout.height / 2 - scoreBirdSprite.height / 2)
-        scoreBirdSprite.draw(game.batch)
+        scoreBird.setPosition(scoreX - scoreBird.width - 5f * scaleFactor, scoreY - scoreLayout.height / 2 - scoreBird.height / 2)
+        scoreBird.draw(game.batch)
     }
 
     private fun drawPauseUI() {
@@ -379,8 +367,8 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         val scoreX = WORLD_WIDTH - scoreLayout.width - 20f * scaleFactor
         val scoreY = WORLD_HEIGHT - 20f * scaleFactor
         gameFont.draw(game.batch, scoreLayout, scoreX, scoreY)
-        scoreBirdSprite.setPosition(scoreX - scoreBirdSprite.width - 5f * scaleFactor, scoreY - scoreLayout.height / 2 - scoreBirdSprite.height / 2)
-        scoreBirdSprite.draw(game.batch)
+        scoreBird.setPosition(scoreX - scoreBird.width - 5f * scaleFactor, scoreY - scoreLayout.height / 2 - scoreBird.height / 2)
+        scoreBird.draw(game.batch)
     }
 
     private fun drawGameOverUI() {
@@ -440,18 +428,39 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         val iterator = enemies.iterator()
         while (iterator.hasNext()) {
             val enemyBody = iterator.next()
+            val enemySprite = enemyBody.userData as? AnimatedSprite
             val bodyX = enemyBody.position.x * WingyNightsGame.PPM
-            val spriteWidth = (enemyBody.userData as? Sprite)?.width ?: 0f
+            val spriteWidth = enemySprite?.width ?: 0f
             val row = ((enemyBody.position.y * WingyNightsGame.PPM - toBetweenRows) / separationBetweenLines).toInt().coerceIn(0, 4)
 
             if (bodyX + spriteWidth / 2 < -10f) {
                 world.destroyBody(enemyBody)
                 iterator.remove()
-                rowOccupied[row] = false // Free the row
+                rowOccupied[row] = false
                 score++
                 Gdx.app.log("Gameplay", "Enemy evaded. Score: $score")
                 if (MathUtils.random(0, 2) == 1) {
                     endHighSounds[MathUtils.random(0, 4)].play()
+                }
+            } else {
+                enemySprite?.let { sprite ->
+                    val enemyRect = Rectangle(
+                        sprite.x, sprite.y,
+                        sprite.width * sprite.scaleX, sprite.height * sprite.scaleY
+                    )
+                    val charRect = Rectangle(
+                        character.x, character.y,
+                        character.width * character.scaleX, character.height * character.scaleY
+                    )
+                    if (enemyRect.overlaps(charRect) && !isGameOver && isGamePlaying) {
+                        Gdx.app.log("Collision", "Character hit enemy (bounds collision)!")
+                        collisionSound.play()
+                        shouldStepWorld = false // Stop physics updates
+                        characterBody.linearVelocity = Vector2.Zero // Stop movement
+                        characterBody.angularVelocity = 0f // Stop rotation
+                        endGame()
+                        return // Exit loop to prevent further updates
+                    }
                 }
             }
         }
@@ -472,7 +481,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     }
 
     private fun spawnEnemy() {
-        val row = (0..4).filter { !rowOccupied[it] }.randomOrNull() ?: return // Pick an unoccupied row
+        val row = (0..4).filter { !rowOccupied[it] }.randomOrNull() ?: return
         rowOccupied[row] = true
 
         val enemyType = when (MathUtils.random(0, 4)) {
@@ -497,7 +506,9 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
             position.set((enemy.x + enemy.width / 2f) / WingyNightsGame.PPM, (enemy.y + enemy.height / 2f) / WingyNightsGame.PPM)
         }
         val enemyBody = world.createBody(bodyDef)
-        val shape = CircleShape().apply { radius = enemy.width / 2.2f / WingyNightsGame.PPM }
+        val shape = PolygonShape().apply {
+            setAsBox(enemy.width / 2f / WingyNightsGame.PPM, enemy.height / 2f / WingyNightsGame.PPM)
+        }
         val fixtureDef = FixtureDef().apply {
             this.shape = shape
             isSensor = false
@@ -571,7 +582,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         pauseButtonTexture.dispose()
         homeButtonTexture.dispose()
         replayButtonTexture.dispose()
-        scoreBirdSprite.texture.dispose()
+        scoreBird.texture.dispose()
         backgroundStars.forEach { it.texture.dispose() }
         characterSleepingAtlas.dispose()
         enemyAtlases.values.forEach { it.dispose() }
@@ -585,7 +596,6 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         Gdx.app.log("Dispose", "MainScreen disposed.")
     }
 
-    // Helper class for animated sprites
     inner class AnimatedSprite(region: TextureRegion) : Sprite(region) {
         private var animation: Animation<TextureRegion>? = null
         private var animTime = 0f
