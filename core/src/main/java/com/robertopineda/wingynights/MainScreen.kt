@@ -202,12 +202,10 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         isGameOver = false
         isPaused = false
         isCharacterRotating = false
-        hasLost = false // Reset loss state
+        hasLost = false
         character.rotation = 0f
 
-        enemies.forEach { world.destroyBody(it) }
-        enemies.clear()
-        rowOccupied.fill(false)
+        // Do not clear enemies or rowOccupied to maintain flow
         rowDisabled.fill(false) // Re-enable all rows
 
         val initialX = WORLD_WIDTH / 12f
@@ -225,7 +223,14 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     }
 
     private fun restartGame() {
-        resetGame(startGame = true)
+        Gdx.app.log("Game", "Restarting Game")
+        isCharacterRotating = false
+        hasLost = false
+        rowDisabled.fill(false) // Re-enable all rows
+        character.rotation = 0f
+        characterBody.linearVelocity = Vector2(0f, 0f)
+        characterBody.angularVelocity = 0f
+        isGamePlaying = true // Ensure gameplay continues
     }
 
     override fun show() {
@@ -271,7 +276,8 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         camera.update()
         game.batch.projectionMatrix = camera.combined
 
-        if (isGamePlaying && !isPaused) {
+        // Always step the world unless paused to keep enemies flowing
+        if (!isPaused) {
             world.step(1f / 60f, 6, 2)
             stateTime += delta
         }
@@ -329,7 +335,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
         game.batch.end()
 
         handleInput(delta)
-        if (isGamePlaying && !isPaused) {
+        if (!isPaused) {
             updateGameplay(delta)
         }
     }
@@ -341,16 +347,17 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
     }
 
     private fun drawGameplayUI() {
-        pauseButton.draw(game.batch)
-        val scoreText = " $score"
-        scoreLayout.setText(gameFont, scoreText)
-        val scoreX = WORLD_WIDTH - scoreLayout.width - 20f * scaleFactor
-        val scoreY = WORLD_HEIGHT - 20f * scaleFactor
-        gameFont.draw(game.batch, scoreLayout, scoreX, scoreY)
-        scoreBird.setPosition(scoreX - scoreBird.width - 5f * scaleFactor, scoreY - scoreLayout.height / 2 - scoreBird.height / 2)
-        scoreBird.draw(game.batch)
+        if (!hasLost) {
+            pauseButton.draw(game.batch)
+            val scoreText = " $score"
+            scoreLayout.setText(gameFont, scoreText)
+            val scoreX = WORLD_WIDTH - scoreLayout.width - 20f * scaleFactor
+            val scoreY = WORLD_HEIGHT - 20f * scaleFactor
+            gameFont.draw(game.batch, scoreLayout, scoreX, scoreY)
+            scoreBird.setPosition(scoreX - scoreBird.width - 5f * scaleFactor, scoreY - scoreLayout.height / 2 - scoreBird.height / 2)
+            scoreBird.draw(game.batch)
+        }
 
-        // Show game over UI elements if character has lost
         if (hasLost) {
             val gameOverText = "Game Over"
             gameOverLayout.setText(gameFont, gameOverText, Color.WHITE, 0f, Align.center, false)
@@ -401,10 +408,12 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
             if (isGameOver || hasLost) {
                 if (homeButton.boundingRectangle.contains(touchX, touchY)) {
                     Gdx.app.log("Input", "Home button touched")
-                    resetGame(startGame = false)
+                    isGamePlaying = false // Show main menu, keep enemies flowing
+                    isGameOver = false
+                    // Enemies continue flowing, rowDisabled remains as is
                 } else if (replayButton.boundingRectangle.contains(touchX, touchY)) {
                     Gdx.app.log("Input", "Replay button touched")
-                    restartGame()
+                    restartGame() // Re-enable row and character movement
                 }
             } else if (isPaused) {
                 if (playButton.boundingRectangle.contains(touchX, touchY)) {
@@ -416,7 +425,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
                 if (pauseButton.boundingRectangle.contains(touchX, touchY)) {
                     Gdx.app.log("Input", "Pause button touched")
                     isPaused = true
-                } else if (!hasLost) { // Only allow movement if not lost
+                } else if (!hasLost) {
                     val row = (touchY / separationBetweenLines).toInt().coerceIn(0, 4)
                     teleportToRow(row)
                 }
@@ -465,15 +474,15 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
                     if (enemyRect.overlaps(charRect) && !hasLost) {
                         Gdx.app.log("Collision", "Character hit enemy on row $row!")
                         collisionSound.play()
-                        world.destroyBody(enemyBody) // Remove the collided enemy
+                        world.destroyBody(enemyBody)
                         iterator.remove()
                         rowOccupied[row] = false
-                        rowDisabled[row] = true // Disable enemy spawning on this row
-                        isCharacterRotating = true // Start rotating
-                        characterBody.linearVelocity = Vector2.Zero // Stop movement
+                        rowDisabled[row] = true
+                        isCharacterRotating = true
+                        characterBody.linearVelocity = Vector2.Zero
                         characterBody.angularVelocity = 0f
-                        hasLost = true // Mark as lost
-                        return // Exit loop after collision
+                        hasLost = true
+                        return
                     }
                 }
             }
