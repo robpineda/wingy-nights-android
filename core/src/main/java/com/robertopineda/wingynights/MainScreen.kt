@@ -170,7 +170,7 @@ class MainScreen(private val game: WingyNightsGame) : Screen {
             setPosition(WORLD_WIDTH / 2f - width / 2, separationBetweenLines * 3f + toBetweenRows)
         }
         pauseButton = Sprite(pauseButtonTexture).apply {
-            setScale(scaleFactor.coerceIn(1f, 2f) * 0.7f) // Smaller relative scale
+            setScale(scaleFactor.coerceIn(1f, 2f) * 0.9f) // Smaller relative scale
             setPosition(20f, WORLD_HEIGHT - height - 20f)
         }
         homeButton = Sprite(homeButtonTexture).apply { setScale(scaleFactor.coerceIn(1f, 2f)) }
